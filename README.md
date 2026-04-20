@@ -14,7 +14,7 @@ Home Assistant integration for the [Outrider Components](https://www.outridercom
 
 | Entity | Unit | Default | Description |
 |---|---|---|---|
-| Pressure | kPa | enabled | Gauge pressure (what a floor pump reads). Auto-converted by HA to the user's display unit. |
+| Pressure | PSI | enabled | Gauge pressure (what a floor pump reads). HA auto-converts to your display unit if set. |
 | Absolute pressure | PSI | disabled | Raw absolute pressure before subtracting 1 atm — diagnostic. |
 | Signal strength | dBm | disabled | Last observed RSSI — diagnostic. |
 

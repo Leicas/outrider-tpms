@@ -55,9 +55,16 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._client: BleakClient | None = None
         self._connect_lock = asyncio.Lock()
         self._unsub_bt: Any = None
+        self._unsub_unavailable: Any = None
         self._notify_char: BleakGATTCharacteristic | None = None
         self._last_rssi: int | None = None
+        self._connected: bool = False
         self.data = {}
+
+    @property
+    def connected(self) -> bool:
+        """True when we have an active GATT connection with notify subscribed."""
+        return self._connected
 
     @property
     def position(self) -> str:
@@ -77,6 +84,12 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             BluetoothCallbackMatcher(address=self.address, connectable=True),
             BluetoothScanningMode.PASSIVE,
         )
+        self._unsub_unavailable = bluetooth.async_track_unavailable(
+            self.hass,
+            self._async_on_unavailable,
+            self.address,
+            connectable=True,
+        )
         # Trigger an immediate attempt in case the device is already advertising.
         service_info = bluetooth.async_last_service_info(
             self.hass, self.address, connectable=True
@@ -89,7 +102,18 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self._unsub_bt is not None:
             self._unsub_bt()
             self._unsub_bt = None
+        if self._unsub_unavailable is not None:
+            self._unsub_unavailable()
+            self._unsub_unavailable = None
         await self._async_disconnect()
+
+    @callback
+    def _async_on_unavailable(self, _service_info: BluetoothServiceInfoBleak) -> None:
+        """HA has stopped seeing advertisements; treat the sensor as gone."""
+        _LOGGER.debug("%s: no advertisements seen recently, marking unavailable", self.local_name)
+        self._connected = False
+        self.async_set_updated_data({"rssi": self._last_rssi})
+        self.hass.async_create_task(self._async_disconnect())
 
     @callback
     def _async_on_advertisement(
@@ -147,6 +171,7 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             self._client = client
             self._notify_char = notify_char
+            self._connected = True
             _LOGGER.info("%s: subscribed to pressure notifications", self.local_name)
 
     @staticmethod
@@ -166,6 +191,9 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _LOGGER.debug("%s: disconnected", self.local_name)
         self._client = None
         self._notify_char = None
+        self._connected = False
+        # Clear pressure values so entities flip to unavailable until next notify.
+        self.async_set_updated_data({"rssi": self._last_rssi})
 
     @callback
     def _on_notify(self, _char: BleakGATTCharacteristic, data: bytearray) -> None:

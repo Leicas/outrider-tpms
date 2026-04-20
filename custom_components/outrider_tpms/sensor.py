@@ -35,9 +35,9 @@ SENSORS: tuple[OutriderSensorDescription, ...] = (
         translation_key="pressure",
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfPressure.KPA,
-        suggested_display_precision=0,
-        value_fn=lambda d: d.get("gauge_kpa"),
+        native_unit_of_measurement=UnitOfPressure.PSI,
+        suggested_display_precision=1,
+        value_fn=lambda d: d.get("gauge_psi"),
     ),
     OutriderSensorDescription(
         key="absolute_pressure",
@@ -98,7 +98,11 @@ class OutriderSensor(CoordinatorEntity[OutriderCoordinator], SensorEntity):
 
     @property
     def available(self) -> bool:
-        return self.coordinator.data is not None and "gauge_kpa" in (self.coordinator.data or {})
+        # RSSI is tracked from advertisements and remains meaningful across
+        # connection transitions; pressure sensors require an active notify stream.
+        if self.entity_description.key == "rssi":
+            return self.coordinator.data is not None and self.coordinator.data.get("rssi") is not None
+        return self.coordinator.connected and self.native_value is not None
 
     @property
     def native_value(self) -> Any:
