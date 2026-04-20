@@ -6,8 +6,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import struct
+import time
 from datetime import datetime
 from typing import Any
+
+# If we're connected but haven't received a notify in this many seconds, assume
+# the sensor has silently gone to sleep and drop the link so it can fully idle.
+NOTIFY_SILENCE_TIMEOUT_SEC = 60.0
+WATCHDOG_POLL_SEC = 15.0
 
 from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -59,6 +65,8 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._notify_char: BleakGATTCharacteristic | None = None
         self._last_rssi: int | None = None
         self._connected: bool = False
+        self._last_notify_monotonic: float = 0.0
+        self._watchdog_task: asyncio.Task | None = None
         self.data = {}
 
     @property
@@ -109,11 +117,20 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @callback
     def _async_on_unavailable(self, _service_info: BluetoothServiceInfoBleak) -> None:
-        """HA has stopped seeing advertisements; treat the sensor as gone."""
-        _LOGGER.debug("%s: no advertisements seen recently, marking unavailable", self.local_name)
-        self._connected = False
-        self.async_set_updated_data({"rssi": self._last_rssi})
-        self.hass.async_create_task(self._async_disconnect())
+        """HA has stopped seeing advertisements.
+
+        BLE peripherals pause advertising while connected, so this fires
+        routinely during a healthy session — ignore it in that case. Only
+        when we're NOT connected does it mean the sensor has actually slept.
+        We keep last pressure values in `self.data` either way; HA's
+        `last_updated` tells the user how fresh the reading is.
+        """
+        if self._connected:
+            _LOGGER.debug("%s: unavailable callback during active session, ignoring", self.local_name)
+            return
+        _LOGGER.debug("%s: no advertisements seen recently, keeping last values", self.local_name)
+        if self._client is not None:
+            self.hass.async_create_task(self._async_disconnect())
 
     @callback
     def _async_on_advertisement(
@@ -172,6 +189,9 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._client = client
             self._notify_char = notify_char
             self._connected = True
+            self._last_notify_monotonic = time.monotonic()
+            if self._watchdog_task is None or self._watchdog_task.done():
+                self._watchdog_task = self.hass.async_create_task(self._async_watchdog())
             _LOGGER.info("%s: subscribed to pressure notifications", self.local_name)
 
     @staticmethod
@@ -188,12 +208,10 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @callback
     def _on_disconnect(self, _client: BleakClient) -> None:
-        _LOGGER.debug("%s: disconnected", self.local_name)
+        _LOGGER.debug("%s: disconnected (keeping last values)", self.local_name)
         self._client = None
         self._notify_char = None
         self._connected = False
-        # Clear pressure values so entities flip to unavailable until next notify.
-        self.async_set_updated_data({"rssi": self._last_rssi})
 
     @callback
     def _on_notify(self, _char: BleakGATTCharacteristic, data: bytearray) -> None:
@@ -201,6 +219,7 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if len(data) < 2:
             _LOGGER.debug("%s: short payload %s", self.local_name, data.hex())
             return
+        self._last_notify_monotonic = time.monotonic()
         raw_u16 = struct.unpack_from("<H", data, 0)[0]
         absolute_psi = raw_u16 / 10.0
         gauge_psi = absolute_psi - ATM_PSI
@@ -226,7 +245,29 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             }
         )
 
+    async def _async_watchdog(self) -> None:
+        """Drop the link if notifies go silent — lets the sensor sleep and saves battery."""
+        try:
+            while self._connected:
+                await asyncio.sleep(WATCHDOG_POLL_SEC)
+                if not self._connected:
+                    return
+                silence = time.monotonic() - self._last_notify_monotonic
+                if silence > NOTIFY_SILENCE_TIMEOUT_SEC:
+                    _LOGGER.info(
+                        "%s: %0.0fs since last notify, disconnecting to allow sleep",
+                        self.local_name,
+                        silence,
+                    )
+                    await self._async_disconnect()
+                    return
+        except asyncio.CancelledError:
+            raise
+
     async def _async_disconnect(self) -> None:
+        if self._watchdog_task is not None and not self._watchdog_task.done():
+            self._watchdog_task.cancel()
+        self._watchdog_task = None
         if self._client is None:
             return
         try:
@@ -239,3 +280,4 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         finally:
             self._client = None
             self._notify_char = None
+            self._connected = False
