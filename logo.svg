@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Outrider TPMS">
+  <title>Outrider TPMS</title>
+  <circle cx="128" cy="128" r="116" fill="#0f172a"/>
+  <circle cx="128" cy="128" r="96" fill="none" stroke="#38bdf8" stroke-width="10"/>
+  <g fill="none" stroke="#94a3b8" stroke-width="4" stroke-linecap="round">
+    <line x1="128" y1="44" x2="128" y2="58"/>
+    <line x1="128" y1="198" x2="128" y2="212"/>
+    <line x1="44" y1="128" x2="58" y2="128"/>
+    <line x1="198" y1="128" x2="212" y2="128"/>
+    <line x1="68" y1="68" x2="78" y2="78"/>
+    <line x1="178" y1="178" x2="188" y2="188"/>
+    <line x1="68" y1="188" x2="78" y2="178"/>
+    <line x1="178" y1="78" x2="188" y2="68"/>
+  </g>
+  <line x1="128" y1="128" x2="186" y2="80" stroke="#ef4444" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="128" cy="128" r="12" fill="#38bdf8"/>
+  <circle cx="128" cy="128" r="5" fill="#0f172a"/>
+</svg>

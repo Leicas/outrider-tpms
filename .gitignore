@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editor / OS
+*.rsls
+.DS_Store
+Thumbs.db
+
+# Local tooling / agent state
+.claude/
+
+# Capture data — personal / per-bike, not for publication
+adv-*.jsonl
+pressure-*.jsonl
+gatt-*.json
+analysis-out.txt
+smoketest.jsonl

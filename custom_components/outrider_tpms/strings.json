@@ -1,0 +1,34 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "bluetooth_confirm": {
+        "description": "Add the Outrider sensor **{name}** (`{address}`)?"
+      },
+      "user": {
+        "description": "Select a discovered Outrider sensor to add.",
+        "data": {
+          "address": "Device"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This sensor is already configured.",
+      "no_devices_found": "No Outrider sensors are currently being advertised. Wake them by moving the bike and try again.",
+      "not_supported": "This Bluetooth device is not an Outrider sensor."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pressure": {
+        "name": "Pressure"
+      },
+      "absolute_pressure": {
+        "name": "Absolute pressure"
+      },
+      "rssi": {
+        "name": "Signal strength"
+      }
+    }
+  }
+}
