@@ -40,6 +40,15 @@ SENSORS: tuple[OutriderSensorDescription, ...] = (
         value_fn=lambda d: d.get("gauge_psi"),
     ),
     OutriderSensorDescription(
+        key="pressure_bar",
+        translation_key="pressure_bar",
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        suggested_display_precision=2,
+        value_fn=lambda d: d.get("gauge_bar"),
+    ),
+    OutriderSensorDescription(
         key="absolute_pressure",
         translation_key="absolute_pressure",
         device_class=SensorDeviceClass.PRESSURE,
@@ -98,11 +107,12 @@ class OutriderSensor(CoordinatorEntity[OutriderCoordinator], SensorEntity):
 
     @property
     def available(self) -> bool:
-        # RSSI is tracked from advertisements and remains meaningful across
-        # connection transitions; pressure sensors require an active notify stream.
+        # The sensor pings only when the bike wakes (often once or twice a day),
+        # so we keep the last value visible across the long disconnects rather
+        # than going unavailable — otherwise the history graph is mostly gaps.
         if self.entity_description.key == "rssi":
             return self.coordinator.data is not None and self.coordinator.data.get("rssi") is not None
-        return self.coordinator.connected and self.native_value is not None
+        return self.native_value is not None
 
     @property
     def native_value(self) -> Any:

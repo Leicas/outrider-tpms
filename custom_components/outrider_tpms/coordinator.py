@@ -32,9 +32,12 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     ATM_PSI,
+    DEFAULT_TARGET_PSI,
+    DEFAULT_TOLERANCE_PSI,
     DOMAIN,
     OUTRIDER_NOTIFY_CHAR_PREFIX,
     OUTRIDER_SERVICE_PREFIX,
+    PSI_TO_BAR,
     PSI_TO_KPA,
 )
 
@@ -67,6 +70,11 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._connected: bool = False
         self._last_notify_monotonic: float = 0.0
         self._watchdog_task: asyncio.Task | None = None
+        # User-tunable target & tolerance, exposed via Number entities and
+        # consumed by the "Pressure OK" binary sensor. Number entities restore
+        # their persisted values in async_added_to_hass.
+        self.target_psi: float = DEFAULT_TARGET_PSI
+        self.tolerance_psi: float = DEFAULT_TOLERANCE_PSI
         self.data = {}
 
     @property
@@ -224,13 +232,15 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         absolute_psi = raw_u16 / 10.0
         gauge_psi = absolute_psi - ATM_PSI
         gauge_kpa = gauge_psi * PSI_TO_KPA
+        gauge_bar = gauge_psi * PSI_TO_BAR
         now: datetime = dt_util.utcnow()
         _LOGGER.debug(
-            "%s: notify raw=%s abs=%.2f PSI gauge=%.2f PSI (%.1f kPa)",
+            "%s: notify raw=%s abs=%.2f PSI gauge=%.2f PSI (%.2f bar / %.1f kPa)",
             self.local_name,
             data.hex(),
             absolute_psi,
             gauge_psi,
+            gauge_bar,
             gauge_kpa,
         )
         self.async_set_updated_data(
@@ -240,6 +250,7 @@ class OutriderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "absolute_psi": absolute_psi,
                 "gauge_psi": gauge_psi,
                 "gauge_kpa": gauge_kpa,
+                "gauge_bar": gauge_bar,
                 "rssi": self._last_rssi,
                 "last_update": now,
             }

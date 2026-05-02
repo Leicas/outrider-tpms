@@ -23,11 +23,27 @@
       "pressure": {
         "name": "Pressure"
       },
+      "pressure_bar": {
+        "name": "Pressure (bar)"
+      },
       "absolute_pressure": {
         "name": "Absolute pressure"
       },
       "rssi": {
         "name": "Signal strength"
+      }
+    },
+    "number": {
+      "target_pressure": {
+        "name": "Target pressure"
+      },
+      "pressure_tolerance": {
+        "name": "Pressure tolerance"
+      }
+    },
+    "binary_sensor": {
+      "pressure_problem": {
+        "name": "Pressure out of range"
       }
     }
   }
